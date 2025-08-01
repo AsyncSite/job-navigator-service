@@ -740,7 +740,7 @@ docker run -d \
 
 ### 3. docker-compose 통합
 ```yaml
-# asyncsite/docker-compose.yml에 추가
+# job_db/docker-compose.yml에 추가
 job-crawler-service:
   build: ./job-crawler-service
   container_name: asyncsite-job-crawler
