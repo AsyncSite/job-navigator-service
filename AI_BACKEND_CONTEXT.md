@@ -38,13 +38,17 @@ docker exec asyncsite-redis redis-cli FLUSHALL
 1. **핵심 API** - 모든 CRUD 및 검색 API 구현 완료
 2. **프론트엔드 연동** - Navigator 페이지가 백엔드 API 사용 중
 3. **Gateway 통합** - `/api/job-navigator/**` 라우팅 작동
-4. **Redis 캐싱** - 78% 성능 개선 (402ms → 89ms)
+4. **Redis 캐싱** - 68% 성능 개선 (222ms → 71ms)
 5. **TechStack 관계** - Many-to-Many 관계 매핑 완료
+6. **상세보기 기능** - JobDetailModal 구현 완료
+7. **Mock 데이터** - 10개 채용공고 및 15개 회사 데이터
+8. **입력값 검증** - 페이지 번호, 크기, 키워드 길이 검증 완료
+9. **CI/CD 빌드** - 누락된 31개 파일 모두 추가 완료
 
-### ❌ 미해결 이슈
-1. **캐싱 로직 버그** - 필터링 전 결과를 캐시해서 필터가 작동 안함 (임시 비활성화)
-2. **TechStack 필터링** - 코드는 추가했으나 Docker 재빌드 후 테스트 필요
-3. **입력값 검증** - 음수 페이지 번호 등 엣지 케이스 처리 부족
+### ✅ 해결된 이슈
+1. **캐싱 로직 수정** - 필터링된 결과를 캐시하도록 수정 완료
+2. **TechStack 필터링** - 테스트 완료 및 정상 작동
+3. **JPA DDL 설정** - `ddl-auto: update`로 DB 자동 생성
 
 ## 해결된 주요 문제들 (시행착오 포함)
 
@@ -81,54 +85,301 @@ public ObjectMapper redisObjectMapper() {
 PathPatternParserServerWebExchangeMatcher("/api/job-navigator/**"),
 ```
 
-## 다음 AI가 해야 할 작업 (우선순위 순)
+## 🎯 다음 작업: 크롤러 서비스 구현
 
-### 1. 🔥 캐싱 로직 수정 (긴급)
-**문제**: JobService의 캐시가 필터링 전 결과를 저장
+> **현재 상태**: 웹-백엔드 연동이 완료되었고, Mock 데이터로 전체 흐름이 검증되었습니다.
+> 이제 실제 채용 데이터를 수집하는 크롤러 서비스를 구현할 차례입니다.
 
-**해결 방향**:
-```java
-// 현재 (잘못됨)
-cachePort.cacheSearchResult(cacheKey, pagedJobs); // 페이징된 일부만 저장
+### 🚀 크롤러 서비스 구현 가이드
 
-// 수정 필요
-// 1. SearchJobsResult 전체를 캐시하도록 변경
-// 2. 또는 필터링된 전체 결과를 저장하고 페이징은 캐시에서 처리
+#### 1. 서비스 생성 및 기본 구조
+```bash
+# 프로젝트 루트에서 실행
+cd /Users/Rene/Documents/rene/project/asyncsite
+mkdir job-crawler-service
+cd job-crawler-service
 ```
 
-### 2. TechStack 필터링 테스트
-이미 코드는 추가됨:
-```java
-// JobService.java (93-118줄)
-.filter(job -> {
-    if (command.techStackIds() != null && !command.techStackIds().isEmpty()) {
-        // ... 필터링 로직
-    }
-})
+**Python 프로젝트 구조** (backend_design_v1.md 참조):
 ```
-Docker 재빌드 후 테스트 필요
+job-crawler-service/
+├── src/
+│   ├── adapter/
+│   │   ├── inbound/
+│   │   │   ├── api/          # FastAPI 컨트롤러
+│   │   │   └── scheduler/    # 크롤링 스케줄러
+│   │   └── outbound/
+│   │       ├── crawler/      # 사이트별 크롤러
+│   │       └── client/       # Job Navigator Service 클라이언트
+│   ├── application/
+│   │   ├── port/            # 인터페이스 정의
+│   │   ├── service/         # 비즈니스 로직
+│   │   └── dto/             # 데이터 전송 객체
+│   └── domain/              # 도메인 모델
+├── tests/
+├── requirements.txt
+├── Dockerfile
+└── docker-compose.yml
+```
 
-### 3. 입력값 검증 추가
+#### 2. 기술 스택 및 의존성
+**requirements.txt**:
+```
+fastapi==0.109.2
+uvicorn[standard]==0.27.0
+httpx==0.26.0
+beautifulsoup4==4.12.3
+lxml==5.1.0
+apscheduler==3.10.4
+pydantic==2.5.3
+pydantic-settings==2.1.0
+structlog==24.1.0
+prometheus-client==0.19.0
+pytest==7.4.4
+pytest-asyncio==0.23.3
+```
+
+#### 3. 핵심 구현 사항
+
+##### 3.1 타겟 사이트 분석 (우선순위 순)
+1. **네이버 커리어** (careers.naver.com)
+   - RESTful API 존재 여부 확인
+   - HTML 구조 분석
+   - 페이지네이션 방식
+
+2. **카카오** (careers.kakao.com)
+3. **라인** (careers.linecorp.com/ko)
+4. **쿠팡** (www.coupang.jobs)
+5. **배달의민족** (career.woowahan.com)
+
+##### 3.2 크롤러 베이스 클래스
+```python
+# src/adapter/outbound/crawler/base_crawler.py
+from abc import ABC, abstractmethod
+from typing import List
+import httpx
+import asyncio
+import random
+from bs4 import BeautifulSoup
+
+class BaseCrawler(ABC):
+    def __init__(self, company_name: str):
+        self.company_name = company_name
+        self.client = httpx.AsyncClient(
+            headers={
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Accept-Language': 'ko-KR,ko;q=0.9,en;q=0.8'
+            },
+            timeout=30.0
+        )
+    
+    @abstractmethod
+    async def fetch_job_list(self) -> List[str]:
+        """채용공고 URL 목록 수집"""
+        pass
+    
+    @abstractmethod
+    async def parse_job_detail(self, url: str) -> dict:
+        """채용공고 상세 정보 파싱"""
+        pass
+    
+    async def crawl(self) -> List[dict]:
+        """메인 크롤링 로직"""
+        jobs = []
+        job_urls = await self.fetch_job_list()
+        
+        for url in job_urls[:10]:  # 초기엔 10개만 테스트
+            await asyncio.sleep(random.uniform(1, 2))  # Rate limiting
+            job = await self.parse_job_detail(url)
+            if job:
+                jobs.append(job)
+        
+        return jobs
+```
+
+##### 3.3 Job Navigator Service 클라이언트
+```python
+# src/adapter/outbound/client/job_service_client.py
+import httpx
+from typing import List, Dict
+
+class JobServiceClient:
+    def __init__(self, base_url: str):
+        self.base_url = base_url
+        self.client = httpx.AsyncClient()
+    
+    async def send_jobs(self, jobs: List[Dict]) -> dict:
+        """크롤링한 채용공고를 Job Navigator Service로 전송"""
+        response = await self.client.post(
+            f"{self.base_url}/api/jobs/batch",
+            json=jobs
+        )
+        return response.json()
+```
+
+##### 3.4 스케줄러 설정
+```python
+# src/adapter/inbound/scheduler/crawl_scheduler.py
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from datetime import datetime
+
+class CrawlScheduler:
+    def __init__(self, crawl_service):
+        self.scheduler = AsyncIOScheduler()
+        self.crawl_service = crawl_service
+    
+    def start(self):
+        # 매일 새벽 3시 실행
+        self.scheduler.add_job(
+            self.crawl_service.crawl_all_companies,
+            'cron',
+            hour=3,
+            minute=0
+        )
+        
+        # 테스트용: 5분마다 실행
+        # self.scheduler.add_job(
+        #     self.crawl_service.crawl_all_companies,
+        #     'interval',
+        #     minutes=5
+        # )
+        
+        self.scheduler.start()
+```
+
+#### 4. 구현 순서 및 체크리스트
+
+**Week 1: 기반 구축**
+- [ ] Python 프로젝트 구조 생성
+- [ ] FastAPI 기본 설정
+- [ ] 도메인 모델 정의
+- [ ] 크롤러 베이스 클래스 구현
+- [ ] Job Service 클라이언트 구현
+
+**Week 2: 첫 번째 크롤러 구현**
+- [ ] 네이버 채용 사이트 분석
+- [ ] 네이버 크롤러 구현
+- [ ] 파싱 로직 구현 (BeautifulSoup)
+- [ ] 기술 스택 추출 로직
+- [ ] 테스트 작성
+
+**Week 3: 추가 크롤러 및 스케줄링**
+- [ ] 카카오 크롤러 구현
+- [ ] 배달의민족 크롤러 구현
+- [ ] 스케줄러 구현
+- [ ] 에러 처리 및 재시도 로직
+- [ ] 크롤링 로그 저장
+
+**Week 4: 통합 및 배포**
+- [ ] Docker 이미지 빌드
+- [ ] docker-compose 통합
+- [ ] 모니터링 설정 (Prometheus)
+- [ ] 알림 설정 (실패 시)
+- [ ] 운영 배포
+
+#### 5. 중요 고려사항
+
+##### 5.1 robots.txt 준수
+```python
+async def check_robots_txt(self, url: str) -> bool:
+    """robots.txt 확인"""
+    # 구현 필요
+    pass
+```
+
+##### 5.2 Rate Limiting
+- 요청 간 1-2초 딜레이
+- 동시 요청 수 제한 (최대 3개)
+- 429 응답 시 백오프
+
+##### 5.3 에러 처리
+- 네트워크 오류: 3회 재시도
+- 파싱 오류: 로그 남기고 건너뛰기
+- 구조 변경 감지: 알림 발송
+
+##### 5.4 데이터 검증
+```python
+def validate_job_data(job: dict) -> bool:
+    """필수 필드 검증"""
+    required_fields = ['title', 'company_name', 'source_url']
+    return all(field in job and job[field] for field in required_fields)
+```
+
+#### 6. 테스트 전략
+
+##### 6.1 단위 테스트
+```python
+# tests/test_naver_crawler.py
+import pytest
+from src.adapter.outbound.crawler.naver_crawler import NaverCrawler
+
+@pytest.mark.asyncio
+async def test_parse_job_detail():
+    crawler = NaverCrawler()
+    # Mock HTML 데이터로 테스트
+    pass
+```
+
+##### 6.2 통합 테스트
+- 실제 사이트 크롤링 (소량)
+- Job Service 연동 테스트
+- 전체 플로우 테스트
+
+#### 7. 모니터링 및 알림
+
+##### 7.1 메트릭 수집
+```python
+from prometheus_client import Counter, Histogram
+
+crawl_jobs_total = Counter(
+    'crawler_jobs_total',
+    'Total number of jobs crawled',
+    ['company', 'status']
+)
+
+crawl_duration = Histogram(
+    'crawler_duration_seconds',
+    'Time spent crawling',
+    ['company']
+)
+```
+
+##### 7.2 로깅
+```python
+import structlog
+
+logger = structlog.get_logger()
+
+logger.info(
+    "crawl_started",
+    company=company_name,
+    timestamp=datetime.utcnow().isoformat()
+)
+```
+
+### 📋 Job Navigator Service 수정 사항
+
+#### 1. 배치 저장 API 구현
 ```java
-// JobService.searchJobs()
-if (command.page() < 0) {
-    throw new IllegalArgumentException("Page number cannot be negative");
+// JobWebAdapter.java
+@PostMapping("/batch")
+@ResponseStatus(HttpStatus.CREATED)
+public BatchSaveResponse saveBatch(@RequestBody List<SaveJobCommand> commands) {
+    // 구현 필요
 }
-if (command.size() > 100) {
-    command = command.withSize(100); // 최대 100개로 제한
-}
 ```
 
-### 4. 프론트엔드 검색 디바운싱
-```typescript
-// NavigatorPage.tsx
-const debouncedSearch = useMemo(
-    () => debounce((query: string) => {
-        setSearchQuery(query);
-    }, 300),
-    []
-);
-```
+#### 2. 크롤링 로그 저장
+- CrawlLog 엔티티는 이미 존재
+- 저장 로직만 구현 필요
+
+### 🎯 성공 기준
+
+1. **최소 3개 사이트** 크롤링 성공
+2. **매일 100개 이상** 신규 채용공고 수집
+3. **중복 제거** 정확도 95% 이상
+4. **기술 스택 추출** 정확도 80% 이상
+5. **안정성**: 일주일 연속 무장애 운영
 
 ## 유용한 명령어 모음
 
@@ -204,12 +455,13 @@ docker logs asyncsite-job-navigator 2>&1 | grep -E "(ERROR|WARN|Exception)"
 
 ## 현재 TODO 우선순위
 
-1. 캐싱 로직 재설계 (HIGH)
-2. 입력값 검증 추가 (HIGH)  
+1. ~~캐싱 로직 재설계~~ ✅ 완료
+2. ~~입력값 검증 추가~~ ✅ 완료  
 3. 프론트엔드 검색 디바운싱 (MEDIUM)
 4. 매칭 점수 계산 로직 (LOW)
+5. **크롤러 서비스 구현** (CRITICAL) 🔥
 
 ---
 
 **작성일**: 2025-08-01  
-**마지막 수정**: TechStack 필터링 코드 추가, 캐시 임시 비활성화
+**마지막 수정**: 2025-08-01 - 모든 이슈 해결 완료, 크롤러 서비스 구현 가이드 추가
