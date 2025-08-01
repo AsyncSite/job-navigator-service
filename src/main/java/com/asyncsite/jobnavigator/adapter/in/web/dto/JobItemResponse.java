@@ -45,5 +45,8 @@ public record JobItemResponse(
         Boolean hasWarRoom,
         
         @Schema(description = "작전회의실 참여자 수", example = "12")
-        Integer warRoomCount
+        Integer warRoomCount,
+        
+        @Schema(description = "원본 채용공고 URL", example = "https://career.woowahan.com/jobs/backend-python")
+        String sourceUrl
 ) {}

@@ -37,6 +37,7 @@ public class JobWebMapper {
                 .matchScore(calculateMatchScore(job))
                 .hasWarRoom(false)  // TODO: 추후 War Room 기능 구현 시 수정
                 .warRoomCount(null) // TODO: 추후 War Room 기능 구현 시 수정
+                .sourceUrl(job.getSourceUrl())
                 .build();
     }
     

@@ -157,3 +157,278 @@ task dockerBuildAndRun(type: Exec) {
 task dockerStatus(type: Exec) {
     commandLine 'docker', 'ps', '-a', '--filter', 'name=asyncsite'
 }
+
+// Import for Docker helper functions
+import java.io.ByteArrayOutputStream
+
+// Docker 실행 파일 찾기
+def findDockerExecutable() {
+    def possiblePaths = [
+        "/usr/local/bin/docker",
+        "/usr/bin/docker",
+        "/opt/homebrew/bin/docker",
+        "/Applications/Docker.app/Contents/Resources/bin/docker"
+    ]
+    
+    for (path in possiblePaths) {
+        if (file(path).exists()) {
+            return path
+        }
+    }
+    
+    // which 명령어로 docker 찾기
+    try {
+        def output = new ByteArrayOutputStream()
+        exec {
+            commandLine 'which', 'docker'
+            standardOutput = output
+            ignoreExitValue = true
+        }
+        def dockerPath = output.toString().trim()
+        if (dockerPath && file(dockerPath).exists()) {
+            return dockerPath
+        }
+    } catch (Exception e) {
+        // ignore
+    }
+    
+    return null
+}
+
+// Docker 명령어 실행 헬퍼 함수
+def executeDockerCommand(String... args) {
+    def dockerPath = findDockerExecutable()
+    if (!dockerPath) {
+        println "❌ Docker not found. Please make sure Docker Desktop is installed and running."
+        println "   You can also run Docker commands directly from terminal."
+        return false
+    }
+    
+    try {
+        def output = new ByteArrayOutputStream()
+        def result = exec {
+            def fullCommand = []
+            if (args[0] == "docker") {
+                fullCommand = [dockerPath] + args.drop(1)
+            } else {
+                fullCommand = [dockerPath] + args.toList()
+            }
+            
+            commandLine fullCommand
+            workingDir = rootProject.projectDir
+            standardOutput = output
+            errorOutput = output
+            ignoreExitValue = true
+        }
+        
+        if (result.exitValue != 0) {
+            println "Command failed: ${args.join(' ')}"
+            println output.toString()
+            return false
+        }
+        return true
+    } catch (Exception e) {
+        println "Error executing Docker command: ${e.message}"
+        return false
+    }
+}
+
+// Docker Compose 명령어 실행
+def dockerCompose(String... args) {
+    return executeDockerCommand(['compose'] + args.toList() as String[])
+}
+
+// Docker Compose with custom file 명령어 실행
+def dockerComposeWithFile(String file, String... args) {
+    return executeDockerCommand(['compose', '-f', file] + args.toList() as String[])
+}
+
+// Job Navigator Service 전용 Docker Tasks
+tasks.register('dockerBuildJobNavigator') {
+    group = 'docker-job-navigator'
+    description = 'Build Job Navigator Service Docker image'
+    dependsOn bootJar
+    doLast {
+        if (dockerComposeWithFile('docker-compose.job-navigator-only.yml', 'build', 'job-navigator-service')) {
+            println '✅ Job Navigator Service Docker image built successfully'
+        } else {
+            println '❌ Failed to build Job Navigator Service Docker image'
+        }
+    }
+}
+
+tasks.register('dockerUpJobNavigator') {
+    group = 'docker-job-navigator'
+    description = 'Start only Job Navigator Service with docker compose'
+    doLast {
+        // 이미 실행 중인지 확인
+        def isRunning = false
+        try {
+            def output = new ByteArrayOutputStream()
+            exec {
+                commandLine 'docker', 'ps', '--filter', 'name=asyncsite-job-navigator', '--format', '{{.Names}}'
+                standardOutput = output
+                ignoreExitValue = true
+            }
+            isRunning = output.toString().trim().contains('asyncsite-job-navigator')
+        } catch (Exception e) {
+            // ignore
+        }
+        
+        if (isRunning) {
+            println '⚠️  Job Navigator Service is already running. Use dockerRestartJobNavigator to restart.'
+        } else if (dockerComposeWithFile('docker-compose.job-navigator-only.yml', 'up', '-d', 'job-navigator-service')) {
+            println '✅ Job Navigator Service started successfully'
+            println 'Access at: http://localhost:12085'
+            println 'Swagger UI: http://localhost:12085/swagger-ui.html'
+            println 'View logs: ./gradlew dockerLogsJobNavigator'
+        } else {
+            println '❌ Failed to start Job Navigator Service'
+            println 'Make sure Docker Desktop and required services (MySQL, Redis, Eureka) are running'
+        }
+    }
+}
+
+tasks.register('dockerDownJobNavigator') {
+    group = 'docker-job-navigator'
+    description = 'Stop Job Navigator Service Docker container'
+    doLast {
+        if (dockerComposeWithFile('docker-compose.job-navigator-only.yml', 'stop', 'job-navigator-service')) {
+            println '✅ Job Navigator Service stopped successfully'
+        } else {
+            println '❌ Failed to stop Job Navigator Service'
+        }
+    }
+}
+
+tasks.register('dockerRestartJobNavigator') {
+    group = 'docker-job-navigator'
+    description = 'Restart Job Navigator Service in Docker'
+    dependsOn 'dockerDownJobNavigator', 'dockerUpJobNavigator'
+}
+
+// Ensure bootJar runs after clean
+tasks.named('bootJar') {
+    mustRunAfter 'clean'
+}
+
+tasks.register('rebuildJobNavigator') {
+    group = 'docker-job-navigator'
+    description = 'Rebuild and restart Job Navigator Service in Docker (clean build + docker rebuild)'
+    doLast {
+        println '🧹 Cleaning project...'
+        // Execute clean first
+        exec {
+            commandLine './gradlew', 'clean'
+        }
+        
+        println '🔨 Building JAR file...'
+        // Then build JAR
+        exec {
+            commandLine './gradlew', 'bootJar'
+        }
+        
+        println '🐳 Building Docker image...'
+        if (dockerComposeWithFile('docker-compose.job-navigator-only.yml', 'build', 'job-navigator-service')) {
+            println '✅ Job Navigator Service image built successfully'
+            
+            // 재시작을 위해 먼저 중지
+            println '🛑 Stopping and removing old container...'
+            dockerComposeWithFile('docker-compose.job-navigator-only.yml', 'stop', 'job-navigator-service')
+            dockerComposeWithFile('docker-compose.job-navigator-only.yml', 'rm', '-f', 'job-navigator-service')
+            
+            // 새로 시작
+            println '🚀 Starting Job Navigator Service...'
+            if (dockerComposeWithFile('docker-compose.job-navigator-only.yml', 'up', '-d', 'job-navigator-service')) {
+                println '✅ Job Navigator Service restarted successfully'
+                println 'Access at: http://localhost:12085'
+                println 'Swagger UI: http://localhost:12085/swagger-ui.html'
+                println 'View logs: ./gradlew dockerLogsJobNavigator'
+            } else {
+                println '❌ Failed to start Job Navigator Service'
+            }
+        } else {
+            println '❌ Failed to build Job Navigator Service image'
+        }
+    }
+}
+
+tasks.register('dockerLogsJobNavigator') {
+    group = 'docker-job-navigator'
+    description = 'Show Job Navigator Service Docker logs'
+    doLast {
+        executeDockerCommand('logs', '-f', 'asyncsite-job-navigator')
+    }
+}
+
+// Quick rebuild task (main implementation)
+tasks.register('rebuild') {
+    group = 'docker-job-navigator'
+    description = 'Clean build + Docker rebuild + restart (quick command)'
+    doLast {
+        println '🧹 Cleaning project...'
+        // Execute clean first
+        exec {
+            commandLine './gradlew', 'clean'
+        }
+        
+        println '🔨 Building JAR file...'
+        // Then build JAR
+        exec {
+            commandLine './gradlew', 'bootJar'
+        }
+        
+        println '🐳 Building Docker image...'
+        if (dockerComposeWithFile('docker-compose.job-navigator-only.yml', 'build', 'job-navigator-service')) {
+            println '✅ Job Navigator Service image built successfully'
+            
+            // 재시작을 위해 먼저 중지
+            println '🛑 Stopping and removing old container...'
+            dockerComposeWithFile('docker-compose.job-navigator-only.yml', 'stop', 'job-navigator-service')
+            dockerComposeWithFile('docker-compose.job-navigator-only.yml', 'rm', '-f', 'job-navigator-service')
+            
+            // 새로 시작
+            println '🚀 Starting Job Navigator Service...'
+            if (dockerComposeWithFile('docker-compose.job-navigator-only.yml', 'up', '-d', 'job-navigator-service')) {
+                println '✅ Job Navigator Service restarted successfully'
+                println 'Access at: http://localhost:12085'
+                println 'Swagger UI: http://localhost:12085/swagger-ui.html'
+                println 'View logs: ./gradlew dockerLogsJobNavigator'
+            } else {
+                println '❌ Failed to start Job Navigator Service'
+            }
+        } else {
+            println '❌ Failed to build Job Navigator Service image'
+        }
+    }
+}
+
+// Help task for Job Navigator Service Docker commands
+tasks.register('dockerHelpJobNavigator') {
+    group = 'docker-job-navigator'
+    description = 'Show all available Job Navigator Service Docker commands'
+    doLast {
+        println '''
+            |=== Job Navigator Service Docker Commands ===
+            |
+            |Quick Commands:
+            |  ./gradlew rebuild                      - Clean build + Docker rebuild + restart (recommended)
+            |
+            |Job Navigator Service Commands:
+            |  ./gradlew dockerBuildJobNavigator      - Build Job Navigator Service Docker image
+            |  ./gradlew dockerUpJobNavigator         - Start Job Navigator Service
+            |  ./gradlew dockerDownJobNavigator       - Stop Job Navigator Service
+            |  ./gradlew dockerRestartJobNavigator    - Restart Job Navigator Service
+            |  ./gradlew rebuildJobNavigator          - Rebuild JAR and restart Job Navigator Service
+            |  ./gradlew dockerLogsJobNavigator       - Show Job Navigator Service logs
+            |
+            |Legacy Commands (still work):
+            |  ./gradlew dockerUp                     - Start all services (full stack)
+            |  ./gradlew dockerDown                   - Stop all services
+            |  ./gradlew dockerBuildAndRun            - Build and run full stack
+            |
+            |Note: Job Navigator Service requires MySQL, Redis, and Eureka to be running.
+            |      Use the quick command: ./gradlew rebuild
+        '''.stripMargin()
+    }
+}

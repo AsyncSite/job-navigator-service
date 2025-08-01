@@ -7,6 +7,14 @@
 
 ### 1. Docker 이미지 재빌드 필수
 **이것을 모르면 몇 시간을 낭비합니다!**
+
+#### 🚀 가장 쉬운 방법 (권장)
+```bash
+# 한 번에 clean build + Docker 재빌드 + 재시작
+./gradlew rebuild
+```
+
+#### 수동으로 하는 방법
 ```bash
 # 코드 변경 후 반드시 실행
 ./gradlew clean build -x test
@@ -437,6 +445,27 @@ curl -s "http://localhost:8080/api/job-navigator/jobs"  # Gateway
 
 # 로그에서 에러 찾기
 docker logs asyncsite-job-navigator 2>&1 | grep -E "(ERROR|WARN|Exception)"
+```
+
+### Docker 작업 명령어 (Gradle Tasks)
+```bash
+# 🚀 가장 많이 사용하는 명령어
+./gradlew rebuild                      # clean build + Docker 재빌드 + 재시작 (권장!)
+
+# Job Navigator 전용 명령어
+./gradlew dockerBuildJobNavigator      # Docker 이미지 빌드만
+./gradlew dockerUpJobNavigator         # Job Navigator 시작
+./gradlew dockerDownJobNavigator       # Job Navigator 중지
+./gradlew dockerRestartJobNavigator    # Job Navigator 재시작
+./gradlew dockerLogsJobNavigator       # 로그 실시간 확인
+./gradlew rebuildJobNavigator          # rebuild와 동일 (full name)
+
+# 도움말
+./gradlew dockerHelpJobNavigator       # 모든 Docker 명령어 보기
+
+# 기존 명령어 (여전히 작동)
+./gradlew dockerUp                     # 전체 스택 시작
+./gradlew dockerDown                   # 전체 스택 중지
 ```
 
 ## 파일 위치 빠른 참조

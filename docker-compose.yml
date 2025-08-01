@@ -175,8 +175,7 @@ services:
 # Networks
 networks:
   asyncsite-network:
-    driver: bridge
-    name: asyncsite-network
+    external: true
 
 # Volumes
 volumes:
