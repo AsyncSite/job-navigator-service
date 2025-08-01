@@ -1,0 +1,187 @@
+# =============================================================================
+# Job Navigator Service - Complete Stack
+# =============================================================================
+# This docker-compose file contains:
+# - Shared Infrastructure: Redis, MySQL, Eureka
+# - Job Navigator Service: Job posting management and search
+# 
+# Infrastructure services use consistent container names across all services.
+# Docker automatically prevents duplicate containers with the same name.
+# =============================================================================
+
+services:
+  # =============================================================================
+  # Shared Infrastructure Services
+  # These services are shared across all microservices in the asyncsite ecosystem
+  # =============================================================================
+  # Redis - Caching and Session Management
+  redis:
+    image: redis:7-alpine
+    container_name: asyncsite-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - asyncsite-redis-data:/data
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+    labels:
+      - "com.asyncsite.service=redis"
+      - "com.asyncsite.tier=data"
+      - "com.asyncsite.type=infrastructure"
+
+  # MySQL - Main Database
+  mysql:
+    image: mysql:8.0
+    container_name: asyncsite-mysql
+    restart: unless-stopped
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: asyncsite_root_2024!
+      MYSQL_USER: asyncsite_user
+      MYSQL_PASSWORD: asyncsite_pass
+    volumes:
+      - asyncsite-mysql-data:/var/lib/mysql
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+    labels:
+      - "com.asyncsite.service=mysql"
+      - "com.asyncsite.tier=data"
+      - "com.asyncsite.type=infrastructure"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Eureka Server - Service Discovery
+  eureka-server:
+    image: asyncsite/eureka-server:latest
+    container_name: asyncsite-eureka
+    restart: unless-stopped
+    ports:
+      - "8761:8761"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+    labels:
+      - "com.asyncsite.service=eureka-server"
+      - "com.asyncsite.tier=infrastructure"
+      - "com.asyncsite.type=service-discovery"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8761/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # =============================================================================
+  # Job Navigator Service
+  # =============================================================================
+  job-navigator-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: asyncsite/job-navigator-service:latest
+    container_name: asyncsite-job-navigator
+    restart: unless-stopped
+    ports:
+      - "12085:12085"
+    environment:
+      # Spring Configuration
+      - SPRING_PROFILES_ACTIVE=docker
+      
+      # Service Discovery
+      - EUREKA_CLIENT_ENABLED=true
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://eureka-server:8761/eureka/
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
+      - EUREKA_INSTANCE_INSTANCE_ID=${HOSTNAME:-job-navigator}:job-navigator-service:12085
+      
+      # Database Configuration
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/job_db?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=asyncsite_root_2024!
+      
+      # Redis Configuration
+      - SPRING_DATA_REDIS_HOST=redis
+      - SPRING_DATA_REDIS_PORT=6379
+      
+      # JPA Configuration
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - SPRING_JPA_SHOW_SQL=false
+      
+      # Management and Health
+      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info,metrics,prometheus
+      - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always
+      
+      # Logging
+      - LOGGING_LEVEL_COM_ASYNCSITE_JOBNAVIGATOR=INFO
+      - LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_WEB=INFO
+      - LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_SECURITY=INFO
+      
+    volumes:
+      - ~/asyncsite-logs/job-navigator:/app/logs
+    
+    depends_on:
+      - mysql
+      - redis
+      - eureka-server
+    
+    networks:
+      - asyncsite-network
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:12085/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+          cpus: '1.0'
+        reservations:
+          memory: 384M
+          cpus: '0.5'
+    
+    labels:
+      - "com.asyncsite.service=job-navigator-service"
+      - "com.asyncsite.tier=business"
+      - "com.asyncsite.type=microservice"
+      - "com.asyncsite.domain=jobs"
+
+# Networks
+networks:
+  asyncsite-network:
+    driver: bridge
+    name: asyncsite-network
+
+# Volumes
+volumes:
+  asyncsite-redis-data:
+    driver: local
+  asyncsite-mysql-data:
+    driver: local
+  job-navigator-logs:
+    driver: local

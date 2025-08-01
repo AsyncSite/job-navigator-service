@@ -1,0 +1,159 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.5.3'
+    id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'com.asyncsite'
+version = '0.0.1-SNAPSHOT'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+configurations {
+    compileOnly {
+        extendsFrom annotationProcessor
+    }
+}
+
+repositories {
+    mavenLocal()
+    mavenCentral()
+    
+    // GitHub Packages for Core Platform Common
+    maven {
+        url = uri("https://maven.pkg.github.com/AsyncSite/core-platform")
+        credentials {
+            username = project.findProperty("gpr.user") ?: System.getenv("GITHUB_ACTOR")
+            password = project.findProperty("gpr.key") ?: System.getenv("GITHUB_TOKEN")
+        }
+    }
+    maven {
+        url = uri("https://maven.pkg.github.com/asyncsite/asyncsite")
+        credentials {
+            username = project.findProperty("gpr.user") ?: System.getenv("GITHUB_ACTOR")
+            password = project.findProperty("gpr.key") ?: System.getenv("GITHUB_TOKEN")
+        }
+    }
+}
+
+ext {
+    set('springCloudVersion', "2025.0.0")
+}
+
+dependencies {
+    // Spring Boot starters
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+    
+    // Spring Cloud
+    implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
+    implementation 'org.springframework.cloud:spring-cloud-starter-loadbalancer'
+    implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
+    
+    // Database
+    runtimeOnly 'com.mysql:mysql-connector-j'
+    runtimeOnly 'com.h2database:h2'
+    
+    // OpenAPI Documentation
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.0'
+    implementation 'org.springdoc:springdoc-openapi-starter-common:2.8.0'
+    
+    // JWT for authentication
+    implementation 'io.jsonwebtoken:jjwt-api:0.12.3'
+    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.3'
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.3'
+    
+    // Lombok
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+    
+    // Core Platform Common module
+    implementation 'com.asyncsite.coreplatform:common:1.0.0-SNAPSHOT'
+    
+    // Redis for caching
+    implementation 'org.springframework.boot:spring-boot-starter-cache'
+    implementation 'redis.clients:jedis'
+    
+    // Development tools
+    developmentOnly 'org.springframework.boot:spring-boot-devtools'
+    
+    // Testing
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'io.rest-assured:rest-assured:5.3.2'
+    testImplementation 'org.testcontainers:testcontainers:1.19.3'
+    testImplementation 'org.testcontainers:mysql:1.19.3'
+    testImplementation 'org.testcontainers:junit-jupiter:1.19.3'
+}
+
+dependencyManagement {
+    imports {
+        mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
+    }
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
+
+// Configure JAR task
+jar {
+    enabled = false
+}
+
+bootJar {
+    archiveFileName = 'job-navigator-service.jar'
+}
+
+// Docker tasks
+task ensureNetwork(type: Exec) {
+    commandLine 'bash', '-c', '''
+        if ! docker network inspect asyncsite-network >/dev/null 2>&1; then
+            echo "Creating Docker network: asyncsite-network"
+            docker network create asyncsite-network
+        else
+            echo "Docker network asyncsite-network already exists"
+        fi
+    '''
+}
+
+task ensureVolume(type: Exec) {
+    commandLine 'bash', '-c', '''
+        if ! docker volume inspect asyncsite-mysql-data >/dev/null 2>&1; then
+            echo "Creating Docker volume: asyncsite-mysql-data"
+            docker volume create asyncsite-mysql-data
+        else
+            echo "Docker volume asyncsite-mysql-data already exists"
+        fi
+    '''
+}
+
+task dockerUp(type: Exec) {
+    dependsOn ensureNetwork, ensureVolume
+    commandLine 'docker', 'compose', 'up', '-d'
+}
+
+task dockerDown(type: Exec) {
+    commandLine 'docker', 'compose', 'down'
+}
+
+task dockerBuildAndRun(type: Exec) {
+    dependsOn bootJar
+    commandLine 'bash', '-c', '''
+        echo "Building Docker image..."
+        docker build -t job-navigator-service:latest . &&
+        echo "Starting containers..."
+        docker compose up -d
+    '''
+}
+
+task dockerStatus(type: Exec) {
+    commandLine 'docker', 'ps', '-a', '--filter', 'name=asyncsite'
+}

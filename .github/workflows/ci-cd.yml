@@ -1,0 +1,336 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, feature/**, fix/**, release/**, hotfix/** ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  DOCKER_REGISTRY: ghcr.io
+  IMAGE_NAME: ghcr.io/asyncsite/job-navigator-service
+
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+  packages: write
+
+jobs:
+  test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout job-navigator-service
+      uses: actions/checkout@v4
+      with:
+        path: job-navigator-service
+        fetch-depth: 0
+    
+    - name: Checkout core-platform
+      uses: actions/checkout@v4
+      with:
+        repository: AsyncSite/core-platform
+        ref: feature/common/initial-setup
+        path: core-platform
+        token: ${{ secrets.PAT_TOKEN }}
+    
+    - name: Set up JDK 21
+      uses: actions/setup-java@v4
+      with:
+        java-version: '21'
+        distribution: 'temurin'
+        cache: 'gradle'
+    
+    - name: Build and publish core-platform common module
+      working-directory: core-platform
+      run: |
+        chmod +x gradlew
+        ./gradlew :common:build --no-daemon
+        ./gradlew :common:publishToMavenLocal --no-daemon
+        echo "Common module published to:"
+        ls -la ~/.m2/repository/com/asyncsite/coreplatform/common/
+    
+    - name: Grant execute permission for gradlew
+      working-directory: job-navigator-service
+      run: chmod +x gradlew
+    
+    - name: Cache Gradle packages
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+          ~/.m2/repository
+        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+        restore-keys: |
+          ${{ runner.os }}-gradle-
+    
+    - name: Configure Gradle properties
+      working-directory: job-navigator-service
+      run: |
+        mkdir -p ~/.gradle
+        echo "gpr.user=${{ github.actor }}" >> ~/.gradle/gradle.properties
+        echo "gpr.key=${{ secrets.GITHUB_TOKEN }}" >> ~/.gradle/gradle.properties
+        
+    - name: Build with Gradle (skip tests)
+      working-directory: job-navigator-service
+      run: ./gradlew build -x test --no-daemon --stacktrace --info
+      env:
+        USERNAME: ${{ github.actor }}
+        TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Run tests
+      working-directory: job-navigator-service
+      run: ./gradlew test --no-daemon --stacktrace
+      env:
+        USERNAME: ${{ github.actor }}
+        TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results
+        path: 'job-navigator-service/**/build/test-results/test/'
+        retention-days: 7
+    
+    - name: Upload test reports
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-reports
+        path: 'job-navigator-service/**/build/reports/tests/'
+        retention-days: 7
+    
+    - name: Send Discord Notification for Test
+      if: failure()
+      env:
+        STATUS_COLOR: '15158332'
+        STATUS_EMOJI: '❌'
+      run: |
+        curl -H "Content-Type: application/json" \
+             -X POST \
+             -d "{
+               \"embeds\": [{
+                 \"title\": \"$STATUS_EMOJI job-navigator-service 테스트 실패\",
+                 \"color\": $STATUS_COLOR,
+                 \"fields\": [
+                   {\"name\": \"서비스\", \"value\": \"job-navigator-service\", \"inline\": true},
+                   {\"name\": \"브랜치\", \"value\": \"${{ github.ref_name }}\", \"inline\": true},
+                   {\"name\": \"작업자\", \"value\": \"${{ github.actor }}\", \"inline\": true},
+                   {\"name\": \"커밋\", \"value\": \"`${GITHUB_SHA::8}`\", \"inline\": false},
+                   {\"name\": \"시간\", \"value\": \"$(TZ=Asia/Seoul date +'%Y-%m-%d %H:%M:%S KST')\", \"inline\": false},
+                   {\"name\": \"워크플로우\", \"value\": \"[${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\", \"inline\": false}
+                 ],
+                 \"footer\": {
+                   \"text\": \"AsyncSite CI/CD - Test Phase\"
+                 },
+                 \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%S.000Z)\"
+               }]
+             }" \
+             https://discord.com/api/webhooks/1399402822105038999/2qQDazifNKeW_c8MhHqcrw6Li5yDQtBL7f2JIBQ_b4qVT3Vxh7TfpMV3kBFnDYAFL3-h
+
+  build-and-push:
+    name: Build and Push Docker Image
+    needs: test
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'push' && 
+      (contains(github.ref, 'main') || contains(github.ref, 'feature/'))
+    
+    steps:
+    - name: Checkout job-navigator-service
+      uses: actions/checkout@v4
+      with:
+        path: job-navigator-service
+        fetch-depth: 0
+    
+    - name: Checkout core-platform
+      uses: actions/checkout@v4
+      with:
+        repository: AsyncSite/core-platform
+        ref: feature/common/initial-setup
+        path: core-platform
+        token: ${{ secrets.PAT_TOKEN }}
+    
+    - name: Set up JDK 21
+      uses: actions/setup-java@v4
+      with:
+        java-version: '21'
+        distribution: 'temurin'
+        cache: 'gradle'
+    
+    - name: Build and publish core-platform common module
+      working-directory: core-platform
+      run: |
+        chmod +x gradlew
+        ./gradlew :common:build --no-daemon
+        ./gradlew :common:publishToMavenLocal --no-daemon
+    
+    - name: Configure Gradle properties
+      working-directory: job-navigator-service
+      run: |
+        mkdir -p ~/.gradle
+        echo "gpr.user=${{ github.actor }}" >> ~/.gradle/gradle.properties
+        echo "gpr.key=${{ secrets.GITHUB_TOKEN }}" >> ~/.gradle/gradle.properties
+    
+    - name: Build application
+      working-directory: job-navigator-service
+      run: |
+        chmod +x gradlew
+        ./gradlew build -x test --no-daemon
+      env:
+        USERNAME: ${{ github.actor }}
+        TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Log in to GitHub Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.DOCKER_REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./job-navigator-service
+        file: ./job-navigator-service/Dockerfile
+        push: true
+        tags: |
+          ${{ env.IMAGE_NAME }}:latest
+          ${{ env.IMAGE_NAME }}:${{ github.sha }}
+    
+    - name: Send Discord Notification for Build
+      if: failure()
+      env:
+        STATUS_COLOR: '15158332'
+        STATUS_EMOJI: '❌'
+      run: |
+        curl -H "Content-Type: application/json" \
+             -X POST \
+             -d "{
+               \"embeds\": [{
+                 \"title\": \"$STATUS_EMOJI job-navigator-service 빌드 실패\",
+                 \"color\": $STATUS_COLOR,
+                 \"fields\": [
+                   {\"name\": \"서비스\", \"value\": \"job-navigator-service\", \"inline\": true},
+                   {\"name\": \"브랜치\", \"value\": \"${{ github.ref_name }}\", \"inline\": true},
+                   {\"name\": \"작업자\", \"value\": \"${{ github.actor }}\", \"inline\": true},
+                   {\"name\": \"커밋\", \"value\": \"\`${GITHUB_SHA::8}\`\", \"inline\": false},
+                   {\"name\": \"시간\", \"value\": \"$(TZ=Asia/Seoul date +'%Y-%m-%d %H:%M:%S KST')\", \"inline\": false},
+                   {\"name\": \"워크플로우\", \"value\": \"[${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\", \"inline\": false}
+                 ],
+                 \"footer\": {
+                   \"text\": \"AsyncSite CI/CD - Build Phase\"
+                 },
+                 \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%S.000Z)\"
+               }]
+             }" \
+             https://discord.com/api/webhooks/1399402822105038999/2qQDazifNKeW_c8MhHqcrw6Li5yDQtBL7f2JIBQ_b4qVT3Vxh7TfpMV3kBFnDYAFL3-h
+
+  deploy:
+    name: Deploy to Home Server
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'push' && 
+      (contains(github.ref, 'main') || contains(github.ref, 'feature/'))
+    
+    steps:
+    - name: Setup SSH key
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" | base64 -d > ~/.ssh/deploy_key
+        chmod 600 ~/.ssh/deploy_key
+        ssh-keyscan -p 2222 -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+    
+    - name: Deploy to server
+      run: |
+        ssh -p 2222 -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'ENDSSH'
+          echo "Starting deployment of job-navigator-service..."
+          
+          # Navigate to deployment directory
+          cd ~/deployments/job-navigator-service || mkdir -p ~/deployments/job-navigator-service && cd ~/deployments/job-navigator-service
+          
+          # Create docker-compose file
+          cat > docker-compose.yml << COMPOSE_EOF
+          services:
+            job-navigator-service:
+              image: ${{ env.IMAGE_NAME }}:${{ github.sha }}
+              container_name: asyncsite-job-navigator-service
+              ports:
+                - "12085:12085"
+              environment:
+                - SPRING_PROFILES_ACTIVE=docker,microservices
+                - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://asyncsite-eureka:8761/eureka/
+                - SPRING_DATASOURCE_URL=jdbc:mysql://asyncsite-mysql:3306/job_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&characterEncoding=utf8&useUnicode=true
+                - SPRING_DATASOURCE_USERNAME=root
+                - SPRING_DATASOURCE_PASSWORD=asyncsite_root_2024!
+                - SPRING_DATA_REDIS_HOST=asyncsite-redis
+                - SPRING_DATA_REDIS_PORT=6379
+              networks:
+                - asyncsite-network
+              restart: unless-stopped
+              healthcheck:
+                test: ["CMD", "curl", "-f", "http://localhost:12085/actuator/health"]
+                interval: 30s
+                timeout: 10s
+                retries: 3
+                start_period: 60s
+          
+          networks:
+            asyncsite-network:
+              external: true
+        COMPOSE_EOF
+          
+          # Login to GitHub Container Registry
+          echo "${{ secrets.PAT_TOKEN }}" | docker login ghcr.io -u renechoi --password-stdin
+          
+          # Pull latest image
+          docker pull ${{ env.IMAGE_NAME }}:${{ github.sha }}
+          
+          # Stop and remove old containers
+          docker compose down --remove-orphans || true
+          
+          # Start new containers
+          docker compose up -d
+          
+          # Wait for services to be healthy
+          echo "Waiting for services to be healthy..."
+          sleep 45
+          
+          # Check service status
+          docker ps | grep -E "(asyncsite-job-navigator-service|asyncsite-mysql|asyncsite-redis)"
+          
+          echo "Deployment completed!"
+        ENDSSH
+    
+    - name: Send Discord Notification for Deploy
+      if: always()
+      env:
+        STATUS_COLOR: ${{ job.status == 'success' && '3066993' || '15158332' }}
+        STATUS_EMOJI: ${{ job.status == 'success' && '✅' || '❌' }}
+      run: |
+        curl -H "Content-Type: application/json" \
+             -X POST \
+             -d "{
+               \"embeds\": [{
+                 \"title\": \"$STATUS_EMOJI job-navigator-service 배포 ${{ job.status }}\",
+                 \"color\": $STATUS_COLOR,
+                 \"fields\": [
+                   {\"name\": \"서비스\", \"value\": \"job-navigator-service\", \"inline\": true},
+                   {\"name\": \"브랜치\", \"value\": \"${{ github.ref_name }}\", \"inline\": true},
+                   {\"name\": \"배포자\", \"value\": \"${{ github.actor }}\", \"inline\": true},
+                   {\"name\": \"커밋\", \"value\": \"\`${GITHUB_SHA::8}\`\", \"inline\": false},
+                   {\"name\": \"시간\", \"value\": \"$(TZ=Asia/Seoul date +'%Y-%m-%d %H:%M:%S KST')\", \"inline\": false}
+                 ],
+                 \"footer\": {
+                   \"text\": \"AsyncSite CI/CD\"
+                 },
+                 \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%S.000Z)\"
+               }]
+             }" \
+             https://discord.com/api/webhooks/1399402822105038999/2qQDazifNKeW_c8MhHqcrw6Li5yDQtBL7f2JIBQ_b4qVT3Vxh7TfpMV3kBFnDYAFL3-h
