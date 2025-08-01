@@ -5,7 +5,7 @@
 ### 1.1 서비스명
 **Job Navigator** - AsyncSite의 개발자 채용 공고 수집 및 매칭 서비스
 
-> 업데이트: 2025-08-01 - v1 구현 완료, 모든 이슈 해결, 크롤러 서비스 준비 완료
+> 업데이트: 2025-08-01 - v1 구현 완료, 모든 이슈 해결, 프로덕션 DB 자동 생성 추가, 크롤러 서비스 준비 완료
 
 ### 1.2 설계 원칙
 - **단순성 우선**: v1은 MVP로 핵심 기능에만 집중
@@ -212,7 +212,28 @@ job_crawler_service/
 
 ## 5. 데이터베이스 설계
 
-### 5.1 주요 테이블
+### 5.1 데이터베이스 생성
+프로덕션 환경에서는 보안상 `createDatabaseIfNotExist=true`가 작동하지 않으므로, MySQL 초기화 스크립트를 사용합니다.
+
+```sql
+-- mysql/init/01-create-job-databases.sql
+CREATE DATABASE IF NOT EXISTS job_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE IF NOT EXISTS job_db_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+GRANT ALL PRIVILEGES ON job_db.* TO 'root'@'%';
+GRANT ALL PRIVILEGES ON job_db_test.* TO 'root'@'%';
+FLUSH PRIVILEGES;
+```
+
+Docker Compose 설정:
+```yaml
+mysql:
+  volumes:
+    - asyncsite-mysql-data:/var/lib/mysql
+    - ./mysql/init:/docker-entrypoint-initdb.d
+```
+
+### 5.2 주요 테이블
 
 ```sql
 -- 회사 정보
@@ -990,6 +1011,8 @@ docker-compose -f docker-compose.job-navigator-only.yml up -d job-navigator-serv
 - Job Navigator Service의 모든 핵심 기능이 구현 완료되었습니다.
 - 웹 프론트엔드와의 연동이 완벽하게 작동하고 있습니다.
 - 캐싱, 필터링, 입력값 검증 등 모든 이슈가 해결되었습니다.
+- 프로덕션 데이터베이스 자동 생성 문제가 MySQL init 스크립트로 해결되었습니다.
+- CI/CD 파이프라인이 정상적으로 작동하고 있습니다.
 - 크롤러 서비스 구현을 시작할 준비가 완료되었습니다.
 
 이 설계는 AsyncSite의 기존 아키텍처와 일관성을 유지하면서도, Job Navigator의 핵심 기능인 채용공고 관리와 검색에 집중합니다. 향후 v2에서 크롤링 자동화와 더 고도화된 기능을 추가할 수 있도록 확장 가능한 구조로 구현되었습니다.

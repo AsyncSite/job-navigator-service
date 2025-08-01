@@ -1,6 +1,6 @@
 # AsyncSite Ignition Navigator 프론트엔드-백엔드 연동 분석 보고서
 
-> 업데이트: 2025-08-01 - 프론트엔드-백엔드 연동 완료
+> 업데이트: 2025-08-01 - 프론트엔드-백엔드 연동 완료, 프로덕션 DB 자동 생성 추가
 
 ## 1. 현재 상태 분석
 
@@ -452,3 +452,28 @@ GROUP BY jp.id"
 - [ ] 캐시 무효화 시나리오
 
 총 소요 시간: 예상 2주 → 실제 1일 (기본 연동 완료)
+
+### 9.8 프로덕션 배포 준비사항
+
+#### MySQL 데이터베이스 초기화
+프로덕션 환경에서는 보안상 `createDatabaseIfNotExist=true`가 작동하지 않으므로, MySQL 초기화 스크립트를 사용합니다.
+
+```sql
+-- mysql/init/01-create-job-databases.sql
+CREATE DATABASE IF NOT EXISTS job_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE IF NOT EXISTS job_db_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+GRANT ALL PRIVILEGES ON job_db.* TO 'root'@'%';
+GRANT ALL PRIVILEGES ON job_db_test.* TO 'root'@'%';
+FLUSH PRIVILEGES;
+```
+
+Docker Compose 설정:
+```yaml
+mysql:
+  volumes:
+    - asyncsite-mysql-data:/var/lib/mysql
+    - ./mysql/init:/docker-entrypoint-initdb.d
+```
+
+이 설정으로 컨테이너 최초 실행 시 자동으로 데이터베이스가 생성됩니다.

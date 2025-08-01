@@ -44,11 +44,12 @@ docker exec asyncsite-redis redis-cli FLUSHALL
 7. **Mock 데이터** - 10개 채용공고 및 15개 회사 데이터
 8. **입력값 검증** - 페이지 번호, 크기, 키워드 길이 검증 완료
 9. **CI/CD 빌드** - 누락된 31개 파일 모두 추가 완료
+10. **프로덕션 DB 생성** - MySQL init 스크립트 추가로 자동 생성 가능
 
 ### ✅ 해결된 이슈
 1. **캐싱 로직 수정** - 필터링된 결과를 캐시하도록 수정 완료
 2. **TechStack 필터링** - 테스트 완료 및 정상 작동
-3. **JPA DDL 설정** - `ddl-auto: update`로 DB 자동 생성
+3. **프로덕션 DB 자동 생성** - MySQL init 스크립트 사용
 
 ## 해결된 주요 문제들 (시행착오 포함)
 
@@ -83,6 +84,30 @@ public ObjectMapper redisObjectMapper() {
 ```kotlin
 // core-platform/security/.../SecurityConfig.kt
 PathPatternParserServerWebExchangeMatcher("/api/job-navigator/**"),
+```
+
+### 4. 프로덕션 DB 자동 생성 실패
+**증상**: 프로덕션 환경에서 "Unknown database 'job_db'" 오류 발생
+
+**원인**: `createDatabaseIfNotExist=true`는 보안상 프로덕션에서 작동하지 않음
+
+**해결**: MySQL 초기화 스크립트 추가
+```sql
+-- mysql/init/01-create-job-databases.sql
+CREATE DATABASE IF NOT EXISTS job_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE IF NOT EXISTS job_db_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+GRANT ALL PRIVILEGES ON job_db.* TO 'root'@'%';
+GRANT ALL PRIVILEGES ON job_db_test.* TO 'root'@'%';
+FLUSH PRIVILEGES;
+```
+
+**docker-compose.yml 수정**:
+```yaml
+mysql:
+  volumes:
+    - asyncsite-mysql-data:/var/lib/mysql
+    - ./mysql/init:/docker-entrypoint-initdb.d  # 이 라인 추가
 ```
 
 ## 🎯 다음 작업: 크롤러 서비스 구현
@@ -457,11 +482,12 @@ docker logs asyncsite-job-navigator 2>&1 | grep -E "(ERROR|WARN|Exception)"
 
 1. ~~캐싱 로직 재설계~~ ✅ 완료
 2. ~~입력값 검증 추가~~ ✅ 완료  
-3. 프론트엔드 검색 디바운싱 (MEDIUM)
-4. 매칭 점수 계산 로직 (LOW)
-5. **크롤러 서비스 구현** (CRITICAL) 🔥
+3. ~~프로덕션 DB 자동 생성~~ ✅ 완료
+4. **크롤러 서비스 구현** (CRITICAL) 🔥 - 다음 AI가 진행해야 할 작업
+5. 프론트엔드 검색 디바운싱 (MEDIUM)
+6. 매칭 점수 계산 로직 (LOW)
 
 ---
 
 **작성일**: 2025-08-01  
-**마지막 수정**: 2025-08-01 - 모든 이슈 해결 완료, 크롤러 서비스 구현 가이드 추가
+**마지막 수정**: 2025-08-01 - 프로덕션 DB 자동 생성 이슈 해결, 모든 기능 정상 작동 확인
