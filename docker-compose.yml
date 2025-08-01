@@ -49,6 +49,7 @@ services:
       MYSQL_PASSWORD: asyncsite_pass
     volumes:
       - asyncsite-mysql-data:/var/lib/mysql
+      - ./mysql/init:/docker-entrypoint-initdb.d
     deploy:
       resources:
         limits:
