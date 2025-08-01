@@ -266,7 +266,7 @@ jobs:
               environment:
                 - SPRING_PROFILES_ACTIVE=docker,microservices
                 - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://asyncsite-eureka:8761/eureka/
-                - SPRING_DATASOURCE_URL=jdbc:mysql://asyncsite-mysql:3306/job_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&characterEncoding=utf8&useUnicode=true
+                - SPRING_DATASOURCE_URL=jdbc:mysql://asyncsite-mysql:3306/job_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&characterEncoding=utf8&useUnicode=true&createDatabaseIfNotExist=true
                 - SPRING_DATASOURCE_USERNAME=root
                 - SPRING_DATASOURCE_PASSWORD=asyncsite_root_2024!
                 - SPRING_DATA_REDIS_HOST=asyncsite-redis
