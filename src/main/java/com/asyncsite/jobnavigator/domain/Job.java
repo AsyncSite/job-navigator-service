@@ -35,6 +35,7 @@ public class Job {
     
     public enum ExperienceLevel {
         JUNIOR("Junior", 0, 2),
+        MID("Mid-level", 2, 5),
         SENIOR("Senior", 3, 10),
         LEAD("Lead/Principal", 7, null),
         ANY("Any Level", null, null);

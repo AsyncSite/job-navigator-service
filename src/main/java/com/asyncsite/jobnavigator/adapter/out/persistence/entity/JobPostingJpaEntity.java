@@ -97,6 +97,6 @@ public class JobPostingJpaEntity {
     }
     
     public enum ExperienceLevel {
-        JUNIOR, SENIOR, LEAD, ANY
+        JUNIOR, MID, SENIOR, LEAD, ANY
     }
 }

@@ -114,6 +114,7 @@ public class JobWebMapper {
         
         return switch (level) {
             case JUNIOR -> "경력 1-3년";
+            case MID -> "경력 2-5년";
             case SENIOR -> "경력 3년 이상";
             case LEAD -> "경력 7년 이상";
             case ANY -> "경력 무관";
