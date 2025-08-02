@@ -20,6 +20,7 @@ import java.util.stream.Collectors;
 public class JobWebMapper {
     
     private static final DateTimeFormatter DEADLINE_FORMATTER = DateTimeFormatter.ofPattern("~yyyy.MM.dd");
+    private static final DateTimeFormatter POSTED_DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     
     /**
      * Job 도메인 모델을 JobItemResponse DTO로 변환
@@ -39,6 +40,8 @@ public class JobWebMapper {
                 .hasWarRoom(false)  // TODO: 추후 War Room 기능 구현 시 수정
                 .warRoomCount(null) // TODO: 추후 War Room 기능 구현 시 수정
                 .sourceUrl(job.getSourceUrl())
+                .postedAt(formatPostedDate(job.getPostedAt()))
+                .experienceCategory(job.getExperienceCategory() != null ? job.getExperienceCategory().name() : null)
                 .build();
     }
     
@@ -141,5 +144,16 @@ public class JobWebMapper {
     private Integer calculateMatchScore(Job job) {
         // 임시로 70-95 사이의 랜덤 값 반환
         return 70 + (int)(Math.random() * 26);
+    }
+    
+    /**
+     * 등록일 포맷팅
+     */
+    private String formatPostedDate(LocalDateTime postedAt) {
+        if (postedAt == null) {
+            return LocalDateTime.now().format(POSTED_DATE_FORMATTER);
+        }
+        
+        return postedAt.format(POSTED_DATE_FORMATTER);
     }
 }

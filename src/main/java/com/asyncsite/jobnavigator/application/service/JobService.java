@@ -89,8 +89,10 @@ public class JobService implements SearchJobsUseCase, GetJobDetailUseCase, SaveJ
                     return true;
                 })
                 .filter(job -> {
-                    if (command.experienceLevel() != null) {
-                        return job.getExperienceCategory().toString().equals(command.experienceLevel());
+                    if (command.experienceLevel() != null && !command.experienceLevel().isEmpty()) {
+                        // experienceLevel should be enum name (ENTRY, JUNIOR, MID, etc.)
+                        return job.getExperienceCategory() != null && 
+                               job.getExperienceCategory().name().equals(command.experienceLevel());
                     }
                     return true;
                 })

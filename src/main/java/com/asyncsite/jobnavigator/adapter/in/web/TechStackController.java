@@ -1,5 +1,6 @@
 package com.asyncsite.jobnavigator.adapter.in.web;
 
+import com.asyncsite.jobnavigator.adapter.in.web.dto.TechStackWithCountResponse;
 import com.asyncsite.jobnavigator.application.port.in.GetTechStacksUseCase;
 import com.asyncsite.jobnavigator.domain.TechStack;
 import io.swagger.v3.oas.annotations.Operation;
@@ -61,5 +62,15 @@ public class TechStackController {
         
         List<TechStack> popularTechStacks = getTechStacksUseCase.getPopularTechStacks(limit);
         return ResponseEntity.ok(popularTechStacks);
+    }
+    
+    @GetMapping("/with-count")
+    @Operation(summary = "기술스택별 채용공고 수 조회", description = "각 기술스택별 활성 채용공고 수를 포함하여 조회합니다.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "조회 성공")
+    })
+    public ResponseEntity<List<TechStackWithCountResponse>> getTechStacksWithJobCount() {
+        List<TechStackWithCountResponse> techStacksWithCount = getTechStacksUseCase.getTechStacksWithJobCount();
+        return ResponseEntity.ok(techStacksWithCount);
     }
 }

@@ -1,5 +1,6 @@
 package com.asyncsite.jobnavigator.adapter.in.web;
 
+import com.asyncsite.jobnavigator.adapter.in.web.dto.CompanyWithCountResponse;
 import com.asyncsite.jobnavigator.application.port.in.GetCompaniesUseCase;
 import com.asyncsite.jobnavigator.domain.Company;
 import io.swagger.v3.oas.annotations.Operation;
@@ -48,5 +49,15 @@ public class CompanyController {
     public ResponseEntity<List<Company>> getActiveCompanies() {
         List<Company> companies = getCompaniesUseCase.getActiveCompanies();
         return ResponseEntity.ok(companies);
+    }
+    
+    @GetMapping("/with-count")
+    @Operation(summary = "회사별 채용공고 수 조회", description = "각 회사별 활성 채용공고 수를 포함하여 조회합니다.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "조회 성공")
+    })
+    public ResponseEntity<List<CompanyWithCountResponse>> getCompaniesWithJobCount() {
+        List<CompanyWithCountResponse> companiesWithCount = getCompaniesUseCase.getCompaniesWithJobCount();
+        return ResponseEntity.ok(companiesWithCount);
     }
 }

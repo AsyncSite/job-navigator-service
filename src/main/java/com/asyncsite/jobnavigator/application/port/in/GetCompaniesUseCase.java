@@ -1,5 +1,6 @@
 package com.asyncsite.jobnavigator.application.port.in;
 
+import com.asyncsite.jobnavigator.adapter.in.web.dto.CompanyWithCountResponse;
 import com.asyncsite.jobnavigator.domain.Company;
 import java.util.List;
 
@@ -19,4 +20,10 @@ public interface GetCompaniesUseCase {
      * @return 활성 회사 목록
      */
     List<Company> getActiveCompanies();
+    
+    /**
+     * 회사별 채용공고 수를 포함한 목록 조회
+     * @return 회사별 채용공고 수 목록
+     */
+    List<CompanyWithCountResponse> getCompaniesWithJobCount();
 }

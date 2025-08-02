@@ -48,5 +48,11 @@ public record JobItemResponse(
         Integer warRoomCount,
         
         @Schema(description = "원본 채용공고 URL", example = "https://career.woowahan.com/jobs/backend-python")
-        String sourceUrl
+        String sourceUrl,
+        
+        @Schema(description = "채용공고 등록일", example = "2025-08-01")
+        String postedAt,
+        
+        @Schema(description = "경력 카테고리", example = "MID")
+        String experienceCategory
 ) {}

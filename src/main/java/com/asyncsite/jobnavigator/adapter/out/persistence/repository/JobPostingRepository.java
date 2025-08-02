@@ -44,4 +44,21 @@ public interface JobPostingRepository extends JpaRepository<JobPostingJpaEntity,
     boolean existsBySourceUrl(String sourceUrl);
     
     long countByIsActiveTrue();
+    
+    @Query(value = "SELECT company_id, COUNT(*) FROM job_postings " +
+           "WHERE is_active = true " +
+           "GROUP BY company_id", nativeQuery = true)
+    List<Object[]> countActiveJobsByCompany();
+    
+    @Query(value = "SELECT jts.tech_stack_id, COUNT(DISTINCT jp.id) " +
+           "FROM job_tech_stacks jts " +
+           "INNER JOIN job_postings jp ON jts.job_posting_id = jp.id " +
+           "WHERE jp.is_active = true " +
+           "GROUP BY jts.tech_stack_id", nativeQuery = true)
+    List<Object[]> countActiveJobsByTechStack();
+    
+    @Query(value = "SELECT experience_category, COUNT(*) FROM job_postings " +
+           "WHERE is_active = true " +
+           "GROUP BY experience_category", nativeQuery = true)
+    List<Object[]> countActiveJobsByExperienceCategory();
 }

@@ -19,6 +19,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -170,5 +171,31 @@ public class JobPersistenceAdapter implements LoadJobPort, SaveJobPort {
     public long countActiveJobs() {
         log.debug("Counting active jobs");
         return jobPostingRepository.countByIsActiveTrue();
+    }
+    
+    @Override
+    @Transactional(readOnly = true)
+    public Map<Long, Integer> countActiveJobsByCompany() {
+        log.debug("Counting active jobs by company");
+        List<Object[]> results = jobPostingRepository.countActiveJobsByCompany();
+        
+        return results.stream()
+                .collect(Collectors.toMap(
+                        result -> (Long) result[0],
+                        result -> ((Long) result[1]).intValue()
+                ));
+    }
+    
+    @Override
+    @Transactional(readOnly = true)
+    public Map<Long, Integer> countActiveJobsByTechStack() {
+        log.debug("Counting active jobs by tech stack");
+        List<Object[]> results = jobPostingRepository.countActiveJobsByTechStack();
+        
+        return results.stream()
+                .collect(Collectors.toMap(
+                        result -> (Long) result[0],
+                        result -> ((Long) result[1]).intValue()
+                ));
     }
 }

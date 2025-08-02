@@ -2,6 +2,7 @@ package com.asyncsite.jobnavigator.application.port.out;
 
 import com.asyncsite.jobnavigator.domain.Job;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -48,4 +49,16 @@ public interface LoadJobPort {
      * @return 활성 채용공고 개수
      */
     long countActiveJobs();
+    
+    /**
+     * 회사별 활성 채용공고 수 조회
+     * @return 회사ID -> 채용공고 수 맵
+     */
+    Map<Long, Integer> countActiveJobsByCompany();
+    
+    /**
+     * 기술스택별 활성 채용공고 수 조회
+     * @return 기술스택ID -> 채용공고 수 맵
+     */
+    Map<Long, Integer> countActiveJobsByTechStack();
 }
