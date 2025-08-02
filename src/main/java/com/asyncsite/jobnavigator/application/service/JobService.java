@@ -46,28 +46,28 @@ public class JobService implements SearchJobsUseCase, GetJobDetailUseCase, SaveJ
         log.info("Searching jobs with criteria: {}", command);
         
         // 캐시 키 생성
-        String cacheKey = generateCacheKey(command);
+        // String cacheKey = generateCacheKey(command);
         
         // 캐시에서 조회 - 필터링된 전체 결과를 캐시함
-        Optional<List<Job>> cachedResult = jobCachePort.getCachedSearchResult(cacheKey);
-        if (cachedResult.isPresent()) {
-            log.debug("Cache hit for search: {}", cacheKey);
-            List<Job> filteredJobs = cachedResult.get();
-            
-            // 페이징 처리
-            int start = command.page() * command.size();
-            int end = Math.min(start + command.size(), filteredJobs.size());
-            List<Job> pagedJobs = start < filteredJobs.size() ? 
-                filteredJobs.subList(start, end) : List.of();
-            
-            return new SearchJobsResult(
-                    pagedJobs,
-                    filteredJobs.size(),
-                    (int) Math.ceil((double) filteredJobs.size() / command.size()),
-                    command.page(),
-                    command.size()
-            );
-        }
+        // Optional<List<Job>> cachedResult = jobCachePort.getCachedSearchResult(cacheKey);
+        // if (cachedResult.isPresent()) {
+        //     log.debug("Cache hit for search: {}", cacheKey);
+        //     List<Job> filteredJobs = cachedResult.get();
+        //     
+        //     // 페이징 처리
+        //     int start = command.page() * command.size();
+        //     int end = Math.min(start + command.size(), filteredJobs.size());
+        //     List<Job> pagedJobs = start < filteredJobs.size() ? 
+        //         filteredJobs.subList(start, end) : List.of();
+        //     
+        //     return new SearchJobsResult(
+        //             pagedJobs,
+        //             filteredJobs.size(),
+        //             (int) Math.ceil((double) filteredJobs.size() / command.size()),
+        //             command.page(),
+        //             command.size()
+        //     );
+        // }
         
         // 모든 활성 채용공고 조회
         List<Job> allJobs = loadJobPort.loadActiveJobs();
@@ -124,7 +124,7 @@ public class JobService implements SearchJobsUseCase, GetJobDetailUseCase, SaveJ
         List<Job> pagedJobs = filteredJobs.subList(start, end);
         
         // 캐시 저장 - 필터링된 전체 결과를 저장
-        jobCachePort.cacheSearchResult(cacheKey, filteredJobs);
+        // jobCachePort.cacheSearchResult(cacheKey, filteredJobs);
         
         return new SearchJobsResult(
                 pagedJobs,
@@ -140,18 +140,18 @@ public class JobService implements SearchJobsUseCase, GetJobDetailUseCase, SaveJ
         log.info("Getting job detail for id: {}", jobId);
         
         // 캐시에서 조회
-        Optional<Job> cachedJob = jobCachePort.getCachedJob(jobId);
-        if (cachedJob.isPresent()) {
-            log.debug("Cache hit for job: {}", jobId);
-            return cachedJob.get();
-        }
+        // Optional<Job> cachedJob = jobCachePort.getCachedJob(jobId);
+        // if (cachedJob.isPresent()) {
+        //     log.debug("Cache hit for job: {}", jobId);
+        //     return cachedJob.get();
+        // }
         
         // DB에서 조회
         Job job = loadJobPort.loadJob(jobId)
                 .orElseThrow(() -> new NoSuchElementException("Job not found with id: " + jobId));
         
         // 캐시 저장
-        jobCachePort.cacheJob(job);
+        // jobCachePort.cacheJob(job);
         
         return job;
     }
@@ -219,7 +219,7 @@ public class JobService implements SearchJobsUseCase, GetJobDetailUseCase, SaveJ
         Job savedJob = saveJobPort.saveJob(job);
         
         // 캐시 무효화
-        jobCachePort.evictAll();
+        // jobCachePort.evictAll();
         
         log.info("Job saved successfully with id: {}", savedJob.getId());
         return savedJob.getId();
@@ -227,8 +227,8 @@ public class JobService implements SearchJobsUseCase, GetJobDetailUseCase, SaveJ
 
     @Override
     public void evictAllCaches() {
-        jobCachePort.evictAll();
-        log.info("All job caches have been evicted.");
+        // jobCachePort.evictAll();
+        log.info("Cache is disabled - evictAllCaches called but no action taken.");
     }
     
     private String generateCacheKey(SearchJobsCommand command) {
