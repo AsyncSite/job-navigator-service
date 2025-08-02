@@ -9,6 +9,7 @@ import com.asyncsite.jobnavigator.application.port.in.SearchJobsUseCase;
 import com.asyncsite.jobnavigator.application.port.in.SearchJobsUseCase.SearchJobsCommand;
 import com.asyncsite.jobnavigator.application.port.in.SearchJobsUseCase.SearchJobsResult;
 import com.asyncsite.jobnavigator.application.port.in.SaveJobUseCase.SaveJobCommand;
+import com.asyncsite.jobnavigator.application.port.in.EvictAllCachesUseCase;
 import com.asyncsite.jobnavigator.domain.Job;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -34,6 +35,7 @@ public class JobController {
     private final SearchJobsUseCase searchJobsUseCase;
     private final GetJobDetailUseCase getJobDetailUseCase;
     private final SaveJobUseCase saveJobUseCase;
+    private final EvictAllCachesUseCase evictAllCachesUseCase;
     private final JobWebMapper jobWebMapper;
     
     @GetMapping
@@ -91,6 +93,10 @@ public class JobController {
     ) {
         List<Long> savedJobIds = requests.stream()
                 .map(request -> {
+                    // Use experienceCategory if provided, otherwise fall back to experienceLevel for backward compatibility
+                    String expCategory = request.experienceCategory() != null ? 
+                            request.experienceCategory() : request.experienceLevel();
+                    
                     SaveJobCommand command = new SaveJobCommand(
                             request.title(),
                             request.description(),
@@ -98,7 +104,8 @@ public class JobController {
                             request.preferred(),
                             request.location(),
                             request.jobType(),
-                            request.experienceLevel(),
+                            expCategory,  // Pass experience category/level
+                            request.experienceRequirement(),  // New field
                             request.sourceUrl(),
                             request.companyName(),
                             request.companyWebsite(),
@@ -126,7 +133,9 @@ public class JobController {
             String preferred,
             String location,
             String jobType,
-            String experienceLevel,
+            String experienceLevel,  // Deprecated - for backward compatibility
+            String experienceRequirement,  // "5년 이상" 등 실제 텍스트
+            String experienceCategory,     // ENTRY, JUNIOR, MID, SENIOR, LEAD, ANY
             String sourceUrl,
             String companyName,
             String companyWebsite,
@@ -144,4 +153,14 @@ public class JobController {
             int savedCount,
             List<Long> jobIds
     ) {}
+
+    @DeleteMapping("/cache")
+    @Operation(summary = "채용공고 캐시 전체 삭제", description = "모든 채용공고 관련 캐시를 삭제합니다.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "204", description = "캐시 삭제 성공")
+    })
+    public ResponseEntity<Void> clearCache() {
+        evictAllCachesUseCase.evictAllCaches();
+        return ResponseEntity.noContent().build();
+    }
 }

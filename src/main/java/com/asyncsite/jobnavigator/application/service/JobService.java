@@ -28,7 +28,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Slf4j
 @Transactional(readOnly = true)
-public class JobService implements SearchJobsUseCase, GetJobDetailUseCase, SaveJobUseCase {
+public class JobService implements SearchJobsUseCase, GetJobDetailUseCase, SaveJobUseCase, EvictAllCachesUseCase {
     
     private final LoadJobPort loadJobPort;
     private final SaveJobPort saveJobPort;
@@ -90,7 +90,7 @@ public class JobService implements SearchJobsUseCase, GetJobDetailUseCase, SaveJ
                 })
                 .filter(job -> {
                     if (command.experienceLevel() != null) {
-                        return job.getExperienceLevel().toString().equals(command.experienceLevel());
+                        return job.getExperienceCategory().toString().equals(command.experienceLevel());
                     }
                     return true;
                 })
@@ -192,7 +192,8 @@ public class JobService implements SearchJobsUseCase, GetJobDetailUseCase, SaveJ
                 command.requirements(),
                 command.preferred(),
                 Job.JobType.valueOf(command.jobType()),
-                Job.ExperienceLevel.valueOf(command.experienceLevel()),
+                command.experienceRequirement(),
+                ExperienceCategory.valueOf(command.experienceCategory()),
                 command.location(),
                 command.postedAt(),
                 command.expiresAt()
@@ -222,6 +223,12 @@ public class JobService implements SearchJobsUseCase, GetJobDetailUseCase, SaveJ
         
         log.info("Job saved successfully with id: {}", savedJob.getId());
         return savedJob.getId();
+    }
+
+    @Override
+    public void evictAllCaches() {
+        jobCachePort.evictAll();
+        log.info("All job caches have been evicted.");
     }
     
     private String generateCacheKey(SearchJobsCommand command) {

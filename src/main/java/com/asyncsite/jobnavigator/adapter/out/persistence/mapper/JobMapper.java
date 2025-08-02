@@ -5,6 +5,7 @@ import com.asyncsite.jobnavigator.adapter.out.persistence.entity.JobTechStackJpa
 import com.asyncsite.jobnavigator.adapter.out.persistence.entity.TechStackJpaEntity;
 import com.asyncsite.jobnavigator.domain.Job;
 import com.asyncsite.jobnavigator.domain.TechStack;
+import com.asyncsite.jobnavigator.domain.ExperienceCategory;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -68,7 +69,8 @@ public class JobMapper {
                 entity.getRequirements(),
                 entity.getPreferred(),
                 entity.getJobType() != null ? Job.JobType.valueOf(entity.getJobType().name()) : null,
-                entity.getExperienceLevel() != null ? Job.ExperienceLevel.valueOf(entity.getExperienceLevel().name()) : null,
+                entity.getExperienceRequirement(),
+                entity.getExperienceCategory() != null ? ExperienceCategory.valueOf(entity.getExperienceCategory().name()) : null,
                 entity.getLocation(),
                 entity.getSourceUrl(),
                 entity.getPostedAt(),
@@ -119,8 +121,9 @@ public class JobMapper {
             entity.setJobType(JobPostingJpaEntity.JobType.valueOf(domain.getJobType().name()));
         }
         
-        if (domain.getExperienceLevel() != null) {
-            entity.setExperienceLevel(JobPostingJpaEntity.ExperienceLevel.valueOf(domain.getExperienceLevel().name()));
+        entity.setExperienceRequirement(domain.getExperienceRequirement());
+        if (domain.getExperienceCategory() != null) {
+            entity.setExperienceCategory(ExperienceCategory.valueOf(domain.getExperienceCategory().name()));
         }
         
         entity.setSourceUrl(domain.getSourceUrl());

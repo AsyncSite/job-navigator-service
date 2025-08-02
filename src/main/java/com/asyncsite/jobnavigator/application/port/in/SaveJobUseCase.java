@@ -22,7 +22,8 @@ public interface SaveJobUseCase {
         String preferred,
         String location,
         String jobType,
-        String experienceLevel,
+        String experienceCategory,  // ENTRY, JUNIOR, MID, SENIOR, LEAD, ANY
+        String experienceRequirement,  // "5년 이상" 등 실제 텍스트
         String sourceUrl,
         String companyName,
         String companyWebsite,

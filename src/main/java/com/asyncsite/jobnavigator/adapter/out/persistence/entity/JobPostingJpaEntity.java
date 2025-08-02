@@ -1,5 +1,6 @@
 package com.asyncsite.jobnavigator.adapter.out.persistence.entity;
 
+import com.asyncsite.jobnavigator.domain.ExperienceCategory;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -49,9 +50,12 @@ public class JobPostingJpaEntity {
     @Enumerated(EnumType.STRING)
     private JobType jobType;
     
-    @Column(name = "experience_level", length = 50)
+    @Column(name = "experience_requirement", length = 100)
+    private String experienceRequirement;  // "5년 이상" 등 실제 텍스트
+    
+    @Column(name = "experience_category", length = 50)
     @Enumerated(EnumType.STRING)
-    private ExperienceLevel experienceLevel;
+    private ExperienceCategory experienceCategory;  // 내부 분류용
     
     @Column(name = "location", length = 200)
     private String location;
@@ -96,7 +100,4 @@ public class JobPostingJpaEntity {
         FULLTIME, CONTRACT, INTERN, PARTTIME
     }
     
-    public enum ExperienceLevel {
-        JUNIOR, MID, SENIOR, LEAD, ANY
-    }
 }

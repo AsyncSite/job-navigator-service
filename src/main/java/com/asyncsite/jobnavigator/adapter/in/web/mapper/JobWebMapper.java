@@ -5,6 +5,7 @@ import com.asyncsite.jobnavigator.adapter.in.web.dto.JobSearchResponse;
 import com.asyncsite.jobnavigator.application.port.in.SearchJobsUseCase.SearchJobsResult;
 import com.asyncsite.jobnavigator.domain.Job;
 import com.asyncsite.jobnavigator.domain.TechStack;
+import com.asyncsite.jobnavigator.domain.ExperienceCategory;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
@@ -31,7 +32,7 @@ public class JobWebMapper {
                 .title(job.getTitle())
                 .description(job.getDescription())
                 .skills(extractSkills(job))
-                .experience(formatExperienceLevel(job.getExperienceLevel()))
+                .experience(job.getExperienceRequirement() != null ? job.getExperienceRequirement() : formatExperienceCategory(job.getExperienceCategory()))
                 .location(job.getLocation())
                 .deadline(formatDeadline(job.getExpiresAt()))
                 .matchScore(calculateMatchScore(job))
@@ -105,18 +106,19 @@ public class JobWebMapper {
     }
     
     /**
-     * 경력 수준 포맷팅
+     * 경력 카테고리 포맷팅
      */
-    private String formatExperienceLevel(Job.ExperienceLevel level) {
-        if (level == null) {
+    private String formatExperienceCategory(ExperienceCategory category) {
+        if (category == null) {
             return "경력 무관";
         }
         
-        return switch (level) {
+        return switch (category) {
+            case ENTRY -> "신입";
             case JUNIOR -> "경력 1-3년";
-            case MID -> "경력 2-5년";
-            case SENIOR -> "경력 3년 이상";
-            case LEAD -> "경력 7년 이상";
+            case MID -> "경력 3-7년";
+            case SENIOR -> "경력 7년 이상";
+            case LEAD -> "경력 10년 이상";
             case ANY -> "경력 무관";
         };
     }

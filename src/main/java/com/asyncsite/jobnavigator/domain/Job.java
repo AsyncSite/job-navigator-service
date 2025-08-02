@@ -33,35 +33,6 @@ public class Job {
         }
     }
     
-    public enum ExperienceLevel {
-        JUNIOR("Junior", 0, 2),
-        MID("Mid-level", 2, 5),
-        SENIOR("Senior", 3, 10),
-        LEAD("Lead/Principal", 7, null),
-        ANY("Any Level", null, null);
-        
-        private final String displayName;
-        private final Integer minYears;
-        private final Integer maxYears;
-        
-        ExperienceLevel(String displayName, Integer minYears, Integer maxYears) {
-            this.displayName = displayName;
-            this.minYears = minYears;
-            this.maxYears = maxYears;
-        }
-        
-        public String getDisplayName() {
-            return displayName;
-        }
-        
-        public Integer getMinYears() {
-            return minYears;
-        }
-        
-        public Integer getMaxYears() {
-            return maxYears;
-        }
-    }
     
     private final Long id;
     private final Company company;
@@ -70,7 +41,8 @@ public class Job {
     private final String requirements;
     private final String preferred;
     private final JobType jobType;
-    private final ExperienceLevel experienceLevel;
+    private final String experienceRequirement;  // "5년 이상" 등 실제 텍스트
+    private final ExperienceCategory experienceCategory;  // 내부 분류용
     private final String location;
     private final String sourceUrl;
     private final LocalDateTime postedAt;
@@ -102,7 +74,7 @@ public class Job {
     }
     
     public Job withDetails(String requirements, String preferred, JobType jobType, 
-                          ExperienceLevel experienceLevel, String location,
+                          String experienceRequirement, ExperienceCategory experienceCategory, String location,
                           LocalDateTime postedAt, LocalDateTime expiresAt) {
         return Job.builder()
                 .id(this.id)
@@ -112,7 +84,8 @@ public class Job {
                 .requirements(requirements)
                 .preferred(preferred)
                 .jobType(jobType)
-                .experienceLevel(experienceLevel)
+                .experienceRequirement(experienceRequirement)
+                .experienceCategory(experienceCategory)
                 .location(location)
                 .sourceUrl(this.sourceUrl)
                 .postedAt(postedAt)
@@ -141,7 +114,8 @@ public class Job {
                 .requirements(this.requirements)
                 .preferred(this.preferred)
                 .jobType(this.jobType)
-                .experienceLevel(this.experienceLevel)
+                .experienceRequirement(this.experienceRequirement)
+                .experienceCategory(this.experienceCategory)
                 .location(this.location)
                 .sourceUrl(this.sourceUrl)
                 .postedAt(this.postedAt)
@@ -170,7 +144,8 @@ public class Job {
                 .requirements(this.requirements)
                 .preferred(this.preferred)
                 .jobType(this.jobType)
-                .experienceLevel(this.experienceLevel)
+                .experienceRequirement(this.experienceRequirement)
+                .experienceCategory(this.experienceCategory)
                 .location(this.location)
                 .sourceUrl(this.sourceUrl)
                 .postedAt(this.postedAt)
@@ -193,7 +168,8 @@ public class Job {
                 .requirements(this.requirements)
                 .preferred(this.preferred)
                 .jobType(this.jobType)
-                .experienceLevel(this.experienceLevel)
+                .experienceRequirement(this.experienceRequirement)
+                .experienceCategory(this.experienceCategory)
                 .location(this.location)
                 .sourceUrl(this.sourceUrl)
                 .postedAt(this.postedAt)
@@ -249,7 +225,8 @@ public class Job {
             String requirements,
             String preferred,
             JobType jobType,
-            ExperienceLevel experienceLevel,
+            String experienceRequirement,
+            ExperienceCategory experienceCategory,
             String location,
             String sourceUrl,
             LocalDateTime postedAt,
@@ -269,7 +246,8 @@ public class Job {
                 .requirements(requirements)
                 .preferred(preferred)
                 .jobType(jobType)
-                .experienceLevel(experienceLevel)
+                .experienceRequirement(experienceRequirement)
+                .experienceCategory(experienceCategory)
                 .location(location)
                 .sourceUrl(sourceUrl)
                 .postedAt(postedAt)

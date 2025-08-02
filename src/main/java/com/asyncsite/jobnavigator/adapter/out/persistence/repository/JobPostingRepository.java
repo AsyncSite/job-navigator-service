@@ -1,6 +1,7 @@
 package com.asyncsite.jobnavigator.adapter.out.persistence.repository;
 
 import com.asyncsite.jobnavigator.adapter.out.persistence.entity.JobPostingJpaEntity;
+import com.asyncsite.jobnavigator.domain.ExperienceCategory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -23,12 +24,12 @@ public interface JobPostingRepository extends JpaRepository<JobPostingJpaEntity,
     
     @Query("SELECT j FROM JobPostingJpaEntity j WHERE j.isActive = true " +
            "AND (:companyId IS NULL OR j.company.id = :companyId) " +
-           "AND (:experienceLevel IS NULL OR j.experienceLevel = :experienceLevel) " +
+           "AND (:experienceCategory IS NULL OR j.experienceCategory = :experienceCategory) " +
            "AND (:jobType IS NULL OR j.jobType = :jobType) " +
            "AND (:keyword IS NULL OR LOWER(j.title) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
            "OR LOWER(j.description) LIKE LOWER(CONCAT('%', :keyword, '%')))")
     Page<JobPostingJpaEntity> searchJobs(@Param("companyId") Long companyId,
-                                        @Param("experienceLevel") JobPostingJpaEntity.ExperienceLevel experienceLevel,
+                                        @Param("experienceCategory") ExperienceCategory experienceCategory,
                                         @Param("jobType") JobPostingJpaEntity.JobType jobType,
                                         @Param("keyword") String keyword,
                                         Pageable pageable);

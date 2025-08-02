@@ -81,6 +81,48 @@ src/main/java/com/asyncsite/jobnavigator/
 
 - `POST /api/jobs/batch` - 크롤러 데이터 수신
 
+## 캐시 임시 비활성화 (2025-08-02)
+
+크롤링 서비스와의 데이터 일관성 문제로 인해 Redis 캐시를 임시로 비활성화했습니다.
+
+### 비활성화 방법
+- `application.yml` 및 `application-docker.yml`의 `spring.cache.type`을 `none`으로 설정
+- 원복 시 `redis`로 변경
+
+### 향후 계획
+- 크롤링 완료 시 캐시 무효화 메커니즘 구현
+- 이벤트 기반 캐시 동기화 고려
+
+## 개인화 기능 임시 비활성화 (2025-08-02)
+
+현재 다음의 개인화 기능들이 임시로 비활성화되어 있습니다:
+
+### 비활성화된 기능
+1. **매칭 점수 (71% 등)**: 현재는 70-95 사이의 랜덤 값 반환
+   - 위치: `JobWebMapper.calculateMatchScore()`
+   - 향후 계획: 사용자 프로필 기반 실제 매칭 점수 계산 구현
+
+2. **대시보드 메뉴**: 프론트엔드에서 임시 제거
+   - 개인화된 추천 공고, 평균 매칭률 등 표시 예정
+
+3. **성장 로드맵 기능**: 프론트엔드에서 임시 제거
+   - 목표 공고까지의 최적 경로 분석 기능
+   - 로드맵 분석 버튼
+
+### 복구 계획
+1. 사용자 프로필 기능 구현
+2. 사용자별 기술 스택 저장 기능 추가
+3. Job.calculateMatchScore() 메서드를 활용한 실제 매칭 점수 계산
+4. 프론트엔드 UI 요소 재활성화
+
+### 관련 코드
+- Backend: `JobWebMapper.java:141-144` (임시 랜덤 값)
+- Frontend: 
+  - `NavigatorPage.tsx` (대시보드 버튼 주석 처리)
+  - `NavigatorList.tsx` (매칭 점수, 로드맵 분석 버튼 주석 처리)
+  - `NavigatorFilters.tsx` (성장 로드맵 CTA 주석 처리)
+  - `JobDetailModal.tsx` (매칭 점수, 로드맵 분석 버튼 주석 처리)
+
 ## 환경 변수
 
 ### 필수 환경 변수

@@ -38,9 +38,10 @@ spring:
         min-idle: 0
   
   cache:
-    type: redis
-    redis:
-      time-to-live: 300000  # 5 minutes
+    type: none  # Redis 캐시 비활성화 - 크롤링 서비스와 데이터 일관성 보장을 위해 임시 비활성화
+    # type: redis
+    # redis:
+    #   time-to-live: 300000  # 5 minutes
   
   security:
     oauth2:
